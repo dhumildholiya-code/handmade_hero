@@ -1,5 +1,6 @@
 #include <windows.h>
 #include <stdint.h>
+#include <math.h>
 
 #define internal static
 #define local_persist static
@@ -32,17 +33,37 @@ internal Win32WindowDim Win32GetWindowDim(HWND window)
     dim.height = clientRect.bottom - clientRect.top;
     return dim;
 }
-internal void RenderGradient(Win32ScreenBuffer buffer, int xOffset, int yOffset)
+internal void RenderGradient(Win32ScreenBuffer buffer, int xOffset, int yOffset, float t)
 {
     uint8_t* row = (uint8_t*)buffer.memory;
+    int ox = buffer.width/2;
+    int oy = buffer.height/2;
+    int maxLength = (int)sqrt(ox*ox + oy*oy);
     for(int y=0; y < buffer.height; ++y)
     {
         uint32_t* pixel = (uint32_t*)row;
         for(int x=0; x < buffer.width; ++x)
         {
-            uint8_t g = y + yOffset;
-            uint8_t b = x + xOffset;
-            *pixel++ = ((g << 8) | b);
+            int8_t wx = (x - ox) + xOffset;
+            int8_t wy = (y - oy) + yOffset;
+            uint8_t r = 0;
+            uint8_t g = 0;
+            uint8_t b = 0;
+
+            int8_t idX = x / 256;
+            int8_t idY = y / 256;
+            int radius = sqrt((x-ox)*(x-ox) + (y-oy)*(y-oy));
+            float rf = (float)radius/maxLength;
+            radius = 70*(1.0f-rf);
+            radius = radius*((cos(t*5 + idX + idY)*.5f + .5f));
+            uint8_t d = (uint8_t)sqrt(wx*wx + wy*wy); 
+            if(d < radius)
+            {
+                r = idX * 50;
+                g = idY * 50;
+                b = radius;
+            }
+            *pixel++ = ((r<<16)|(g << 8) | b);
         }
         row += buffer.pitch;
     }
@@ -124,6 +145,7 @@ int WINAPI WinMain(HINSTANCE instance, HINSTANCE prevInstance, PSTR cmdLine,
             CW_USEDEFAULT, CW_USEDEFAULT, 0, 0, instance, 0);
         if (window) {
             GlobalRunning = true;
+            float t;
             int xOffset = 0;
             int yOffset = 0;
             while (GlobalRunning) {
@@ -134,14 +156,16 @@ int WINAPI WinMain(HINSTANCE instance, HINSTANCE prevInstance, PSTR cmdLine,
                     TranslateMessage(&message);
                     DispatchMessage(&message);
                 }
-                RenderGradient(GlobalBuffer, xOffset, yOffset);
+                RenderGradient(GlobalBuffer, xOffset, yOffset,t);
                 HDC deviceContext = GetDC(window);
                 Win32WindowDim dim = Win32GetWindowDim(window);
                 Win32UpdateWindow(deviceContext,GlobalBuffer, 
                                   dim.width, dim.height);
                 ReleaseDC(window, deviceContext);
 
-                ++xOffset;
+                xOffset = 50*cos(t*2);
+                yOffset = 50*sin(t*2);
+                t += .01f;
             }
         }
     } else {
