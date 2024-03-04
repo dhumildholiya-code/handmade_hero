@@ -5,38 +5,70 @@
 #define global_var static
 
 global_var bool Running;
+global_var BITMAPINFO BitmapInfo;
+global_var void *BitmapMemory;
+global_var HBITMAP BitmapHandle;
+global_var HDC BitmapDC;
 
-internal void Win32ResizeDIBSection(int width, int height) {
+internal void Win32ResizeDIBSection(int width, int height)
+{
+  if (BitmapHandle)
+  {
+    DeleteObject(BitmapHandle);
+  }
+  if (!BitmapDC)
+  {
+    BitmapDC = CreateCompatibleDC(0);
+  }
 
+  BitmapInfo.bmiHeader = {0};
+  BitmapInfo.bmiHeader.biSize = sizeof(BITMAPINFOHEADER);
+  BitmapInfo.bmiHeader.biWidth = width;
+  BitmapInfo.bmiHeader.biHeight = height;
+  BitmapInfo.bmiHeader.biPlanes = 1;
+  BitmapInfo.bmiHeader.biBitCount = 32;
+  BitmapInfo.bmiHeader.biCompression = BI_RGB;
+
+  BitmapHandle = CreateDIBSection(BitmapDC, &BitmapInfo, DIB_RGB_COLORS, &BitmapMemory, 0, 0);
 }
 
 internal void Win32UpdateWindow(HDC deviceCtx, int x, int y, int width,
-                                int height) {
+                                int height)
+{
   StretchDIBits(deviceCtx,
-      x, y, width, height,
-      x, y, width, height,
-      ,,
-      DIB_RGB_COLORS, SRCCOPY);
+                x, y, width, height,
+                x, y, width, height,
+                BitmapMemory, &BitmapInfo,
+                DIB_RGB_COLORS, SRCCOPY);
 }
 
-LRESULT Win32WindowProc(HWND window, UINT message, WPARAM wParam,
-                        LPARAM lParam) {
+internal LRESULT Win32WindowProc(HWND window, UINT message, WPARAM wParam,
+                                 LPARAM lParam)
+{
   LRESULT result = 0;
-  switch (message) {
-  case WM_SIZE: {
+  switch (message)
+  {
+  case WM_SIZE:
+  {
     RECT clientRect;
     GetClientRect(window, &clientRect);
     int width = clientRect.right - clientRect.left;
     int height = clientRect.bottom - clientRect.top;
     Win32ResizeDIBSection(width, height);
-  } break;
-  case WM_DESTROY: {
+  }
+  break;
+  case WM_DESTROY:
+  {
     Running = false;
-  } break;
-  case WM_CLOSE: {
+  }
+  break;
+  case WM_CLOSE:
+  {
     Running = false;
-  } break;
-  case WM_PAINT: {
+  }
+  break;
+  case WM_PAINT:
+  {
     PAINTSTRUCT paint;
     HDC deviceContext = BeginPaint(window, &paint);
     int x = paint.rcPaint.left;
@@ -45,7 +77,8 @@ LRESULT Win32WindowProc(HWND window, UINT message, WPARAM wParam,
     int height = paint.rcPaint.bottom - y;
     Win32UpdateWindow(deviceContext, x, y, width, height);
     EndPaint(window, &paint);
-  } break;
+  }
+  break;
   default:
     result = DefWindowProc(window, message, wParam, lParam);
     break;
@@ -54,7 +87,8 @@ LRESULT Win32WindowProc(HWND window, UINT message, WPARAM wParam,
 }
 
 int WINAPI WinMain(HINSTANCE instance, HINSTANCE prevInstance, PSTR cmdLine,
-                   int showCode) {
+                   int showCode)
+{
 
   // Register Window class
   WNDCLASS windowClass = {};
@@ -64,27 +98,37 @@ int WINAPI WinMain(HINSTANCE instance, HINSTANCE prevInstance, PSTR cmdLine,
   windowClass.lpszClassName = "HandmadeWindowClass";
 
   // Create the window
-  if (RegisterClass(&windowClass)) {
+  if (RegisterClass(&windowClass))
+  {
     HWND window = CreateWindowEx(0, windowClass.lpszClassName, "Handmade Hero",
                                  WS_OVERLAPPEDWINDOW | WS_VISIBLE,
                                  CW_USEDEFAULT, CW_USEDEFAULT, CW_USEDEFAULT,
                                  CW_USEDEFAULT, 0, 0, instance, 0);
-    if (window) {
+    if (window)
+    {
       Running = true;
-      while (Running) {
+      while (Running)
+      {
         MSG message;
         BOOL messageResult = GetMessage(&message, 0, 0, 0);
-        if (messageResult > 0) {
+        if (messageResult > 0)
+        {
           TranslateMessage(&message);
           DispatchMessage(&message);
-        } else {
+        }
+        else
+        {
           break;
         }
       }
-    } else {
+    }
+    else
+    {
       // TODO : Handle error
     }
-  } else {
+  }
+  else
+  {
     // TODO : Handle error
   }
 
